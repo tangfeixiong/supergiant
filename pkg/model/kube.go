@@ -75,3 +75,10 @@ type DOKubeConfig struct {
 
 	MasterID int `json:"master_id" sg:"readonly"`
 }
+
+// DOKubeConfig holds do specific information about DO based KUbernetes clusters.
+type LocalKubeConfig struct {
+	SSHKeyFingerprint string `json:"ssh_key_fingerprint" validate:"nonzero"`
+
+	MasterID int `json:"master_id" sg:"readonly"`
+}
