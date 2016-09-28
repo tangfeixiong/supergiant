@@ -57,8 +57,9 @@ type Core struct {
 
 	// NOTE we do this to prevent having to load all the cloud provider various
 	// lib code everytime we load core
-	AWSProvider func(map[string]string) Provider
-	DOProvider  func(map[string]string) Provider
+	AWSProvider       func(map[string]string) Provider
+	DOProvider        func(map[string]string) Provider
+	LocalKubeProvider func(map[string]string) Provider
 
 	K8S func(*model.Kube) kubernetes.ClientInterface
 

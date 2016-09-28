@@ -31,6 +31,9 @@ func main() {
 		c.DOProvider = func(creds map[string]string) core.Provider {
 			return &digitalocean.Provider{Core: c, Token: creds["token"]}
 		}
+		c.LocalKubeProvider = func(creds map[string]string) core.Provider {
+			return &digitalocean.Provider{Core: c, Token: "NA"}
+		}
 
 		// We do this here, and not in core, so that we can ensure the file closes on exit.
 		if c.LogPath != "" {
