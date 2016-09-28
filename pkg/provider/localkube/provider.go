@@ -1,4 +1,4 @@
-package digitalocean
+package localkube
 
 import (
 	"bytes"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/digitalocean/godo"
+	"github.com/redspread/localkube"
 	"github.com/supergiant/guber"
 	"github.com/supergiant/supergiant/pkg/core"
 	"github.com/supergiant/supergiant/pkg/model"
@@ -19,120 +20,57 @@ type Provider struct {
 	Token string
 }
 
+var (
+	LK *localkube.LocalKube
+
+	DNSDomain     = "cluster.local"
+	ClusterDNSIP  = "10.1.30.3"
+	DNSServerAddr = "172.17.0.1:1970"
+)
+
 // ValidateAccount Valitades DO account info.
 func (p *Provider) ValidateAccount(m *model.CloudAccount) error {
-	client := p.newClient()
-	_, _, err := client.Droplets.List(new(godo.ListOptions))
-	return err
+	return nil
 }
 
 // CreateKube creates a new DO kubernetes cluster.
 func (p *Provider) CreateKube(m *model.Kube, action *core.Action) error {
-	procedure := &core.Procedure{
-		Core:  p.Core,
-		Name:  "Create Kube",
-		Model: m,
+	LK = new(localkube.LocalKube)
+
+	// setup etc
+	etcd, err := localkube.NewEtcd(localkube.KubeEtcdClientURLs, localkube.KubeEtcdPeerURLs, "kubeetcd", localkube.KubeEtcdDataDirectory)
+	if err != nil {
+		panic(err)
 	}
+	LK.Add(etcd)
 
-	client := p.newClient()
+	// setup apiserver
+	apiserver := localkube.NewAPIServer()
+	LK.Add(apiserver)
 
-	procedure.AddStep("creating global tags for Kube", func() error {
-		// These are created once, and then attached by name to created resource
-		globalTags := []string{
-			"Kubernetes-Cluster",
-			m.Name,
-			m.Name + "-master",
-			m.Name + "-minion",
-		}
-		for _, tag := range globalTags {
-			createInput := &godo.TagCreateRequest{
-				Name: tag,
-			}
-			if _, _, err := client.Tags.Create(createInput); err != nil {
-				// TODO
-				p.Core.Log.Warnf("Failed to create Digital Ocean tag '%s': %s", tag, err)
-			}
-		}
-		return nil
-	})
+	// setup controller-manager
+	controllerManager := localkube.NewControllerManagerServer()
+	LK.Add(controllerManager)
 
-	procedure.AddStep("creating master", func() error {
-		if m.MasterPublicIP != "" {
-			return nil
-		}
+	// setup scheduler
+	scheduler := localkube.NewSchedulerServer()
+	LK.Add(scheduler)
 
-		// Build template
-		masterUserdataTemplate, err := Asset("config/providers/digitalocean/master.yaml")
-		if err != nil {
-			return err
-		}
-		masterTemplate, err := template.New("master_template").Parse(string(masterUserdataTemplate))
-		if err != nil {
-			return err
-		}
-		var masterUserdata bytes.Buffer
-		if err = masterTemplate.Execute(&masterUserdata, m); err != nil {
-			return err
-		}
+	// setup kubelet (configured for weave proxy)
+	kubelet := localkube.NewKubeletServer(DNSDomain, ClusterDNSIP)
+	LK.Add(kubelet)
 
-		dropletRequest := &godo.DropletCreateRequest{
-			Name:              m.Name + "-master",
-			Region:            m.DigitalOceanConfig.Region,
-			Size:              m.MasterNodeSize,
-			PrivateNetworking: false,
-			UserData:          string(masterUserdata.Bytes()),
-			SSHKeys: []godo.DropletCreateSSHKey{
-				{
-					Fingerprint: m.DigitalOceanConfig.SSHKeyFingerprint,
-				},
-			},
-			Image: godo.DropletCreateImage{
-				Slug: "coreos-stable",
-			},
-		}
-		tags := []string{"Kubernetes-Cluster", m.Name, dropletRequest.Name}
+	// proxy
+	proxy := localkube.NewProxyServer()
+	LK.Add(proxy)
 
-		masterDroplet, publicIP, err := p.createDroplet(action, dropletRequest, tags)
-		if err != nil {
-			return err
-		}
+	dns, err := localkube.NewDNSServer(DNSDomain, ClusterDNSIP, DNSServerAddr, localkube.APIServerURL)
+	if err != nil {
+		panic(err)
+	}
+	LK.Add(dns)
 
-		m.DigitalOceanConfig.MasterID = masterDroplet.ID
-		m.MasterPublicIP = publicIP
-		return nil
-	})
-
-	procedure.AddStep("building Kubernetes minion", func() error {
-		// Load Nodes to see if we've already created a minion
-		// TODO -- I think we can get rid of a lot of this do-unless behavior if we
-		// modify Procedure to save progess on Action (which is easy to implement).
-		if err := p.Core.DB.Model(m).Association("Nodes").Find(&m.Nodes).Error; err != nil {
-			return err
-		}
-		if len(m.Nodes) > 0 {
-			return nil
-		}
-
-		node := &model.Node{
-			KubeID: m.ID,
-			Size:   m.NodeSizes[0],
-			Kube:   m,
-		}
-		return p.Core.Nodes.Create(node)
-	})
-
-	// TODO repeated in provider_aws.go
-	procedure.AddStep("waiting for Kubernetes", func() error {
-		return action.CancellableWaitFor("Kubernetes API and first minion", 20*time.Minute, 3*time.Second, func() (bool, error) {
-			nodes, err := p.Core.K8S(m).Nodes().List()
-			if err != nil {
-				return false, nil
-			}
-			return len(nodes.Items) > 0, nil
-		})
-	})
-
-	return procedure.Run()
+	return nil
 }
 
 // DeleteKube deletes a DO kubernetes cluster.
