@@ -44,6 +44,9 @@ type Kube struct {
 	DigitalOceanConfig     *DOKubeConfig `json:"digitalocean_config,omitempty" gorm:"-" sg:"store_as_json_in=DigitalOceanConfigJSON"`
 	DigitalOceanConfigJSON []byte        `json:"-"`
 
+	LocalKubeConfig     *LocalKubeConfig `json:"localkube_config,omitempty" gorm:"-" sg:"store_as_json_in=LocalKubeConfigJSON"`
+	LocalKubeConfigJSON []byte           `json:"-"`
+
 	MasterPublicIP string `json:"master_public_ip" sg:"readonly"`
 
 	Ready bool `json:"ready" sg:"readonly" gorm:"index"`
