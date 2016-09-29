@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/supergiant/supergiant/pkg/core"
@@ -70,9 +71,15 @@ func TestEntrypointListenersList(t *testing.T) {
 			requestor := createAdmin(srv.Core)
 			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
 
-			srv.Core.CloudAccounts.Create(item.parentCloudAccount)
-			srv.Core.Kubes.Create(item.parentKube)
-			srv.Core.Entrypoints.Create(item.parentEntrypoint)
+			if item.parentCloudAccount != nil {
+				srv.Core.CloudAccounts.Create(item.parentCloudAccount)
+			}
+			if item.parentKube != nil {
+				srv.Core.Kubes.Create(item.parentKube)
+			}
+			if item.parentEntrypoint != nil {
+				srv.Core.Entrypoints.Create(item.parentEntrypoint)
+			}
 
 			for _, existingModel := range item.existingModels {
 				srv.Core.EntrypointListeners.Create(existingModel)
@@ -143,25 +150,65 @@ func TestEntrypointListenersCreate(t *testing.T) {
 				err: nil,
 			},
 
-			// Correctly sets defaults
-
 			// No Entrypoint
+			{
+				parentCloudAccount: nil,
+				parentKube:         nil,
+				parentEntrypoint:   nil,
+				model: &model.EntrypointListener{
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				mockCreateEntrypointListenerError: nil,
+				err: &model.Error{Status: 422, Message: "Validation failed: EntrypointName: zero value"},
+			},
 
 			// Invalid Entrypoint
-
-			// Invalid provider
-			// {
-			// 	model: &model.EntrypointListener{
-			// 		Name:        "test",
-			// 		Provider:    "nocloud",
-			// 		Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-			// 	},
-			// 	mockCreateEntrypointListenerError: nil,
-			// 	err: &model.Error{Status: 422, Message: "Validation failed: Provider: regular expression mismatch"},
-			// },
+			{
+				parentCloudAccount: nil,
+				parentKube:         nil,
+				parentEntrypoint:   nil,
+				model: &model.EntrypointListener{
+					EntrypointName: "non-existent",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				mockCreateEntrypointListenerError: nil,
+				err: &model.Error{Status: 422, Message: "Parent does not exist, foreign key 'entrypoint_name' on EntrypointListener"},
+			},
 
 			// On Provider CreateEntrypointListener error
-
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				model: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				mockCreateEntrypointListenerError: errors.New("error creating entrypoint"),
+				err: &model.Error{Status: 500, Message: "error creating entrypoint"},
+			},
 		}
 
 		for _, item := range table {
@@ -179,9 +226,15 @@ func TestEntrypointListenersCreate(t *testing.T) {
 			requestor := createAdmin(srv.Core)
 			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
 
-			srv.Core.CloudAccounts.Create(item.parentCloudAccount)
-			srv.Core.Kubes.Create(item.parentKube)
-			srv.Core.Entrypoints.Create(item.parentEntrypoint)
+			if item.parentCloudAccount != nil {
+				srv.Core.CloudAccounts.Create(item.parentCloudAccount)
+			}
+			if item.parentKube != nil {
+				srv.Core.Kubes.Create(item.parentKube)
+			}
+			if item.parentEntrypoint != nil {
+				srv.Core.Entrypoints.Create(item.parentEntrypoint)
+			}
 
 			err := sg.EntrypointListeners.Create(item.model)
 
@@ -194,213 +247,459 @@ func TestEntrypointListenersCreate(t *testing.T) {
 	})
 }
 
-// //------------------------------------------------------------------------------
-//
-// func TestCloudAccountsGet(t *testing.T) {
-// 	srv := newTestServer()
-// 	go srv.Start()
-// 	defer srv.Stop()
-//
-// 	Convey("CloudAccounts Get works correctly", t, func() {
-//
-// 		table := []struct {
-// 			// Input
-// 			existingModel *model.CloudAccount
-// 			// Expectations
-// 			err *model.Error
-// 		}{
-// 			// A successful example
-// 			{
-// 				existingModel: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				err: nil,
-// 			},
-// 		}
-//
-// 		for _, item := range table {
-//
-// 			wipeAndInitialize(srv.Core)
-//
-// 			// For ValidateAccount on Create
-// 			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
-// 				return new(fake.Provider)
-// 			}
-//
-// 			requestor := createAdmin(srv.Core)
-// 			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
-//
-// 			srv.Core.CloudAccounts.Create(item.existingModel)
-//
-// 			err := sg.CloudAccounts.Get(item.existingModel.ID, item.existingModel)
-//
-// 			if item.err == nil {
-// 				So(err, ShouldBeNil)
-// 			} else {
-// 				So(err, ShouldResemble, item.err)
-// 			}
-// 		}
-// 	})
-// }
-//
-// //------------------------------------------------------------------------------
-//
-// func TestCloudAccountsUpdate(t *testing.T) {
-// 	srv := newTestServer()
-// 	go srv.Start()
-// 	defer srv.Stop()
-//
-// 	Convey("CloudAccounts Update works correctly", t, func() {
-//
-// 		table := []struct {
-// 			// Input
-// 			existingModel *model.CloudAccount
-// 			modelUpdate   *model.CloudAccount
-// 			// Expectations
-// 			err *model.Error
-// 		}{
-// 			// Can't update Name
-// 			{
-// 				existingModel: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				modelUpdate: &model.CloudAccount{
-// 					Name: "new-name",
-// 				},
-// 				err: &model.Error{Status: 422, Message: "Name cannot be changed"},
-// 			},
-//
-// 			// Can't update Provider
-// 			{
-// 				existingModel: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				modelUpdate: &model.CloudAccount{
-// 					Provider: "do",
-// 				},
-// 				err: &model.Error{Status: 422, Message: "Provider cannot be changed"},
-// 			},
-//
-// 			// Can't update Credentials
-// 			{
-// 				existingModel: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				modelUpdate: &model.CloudAccount{
-// 					Credentials: map[string]string{"new": "credz"},
-// 				},
-// 				err: &model.Error{Status: 422, Message: "Credentials cannot be changed"},
-// 			},
-// 		}
-//
-// 		for _, item := range table {
-//
-// 			wipeAndInitialize(srv.Core)
-//
-// 			// For Create
-// 			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
-// 				return new(fake.Provider)
-// 			}
-//
-// 			requestor := createAdmin(srv.Core)
-// 			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
-//
-// 			srv.Core.CloudAccounts.Create(item.existingModel)
-//
-// 			err := sg.CloudAccounts.Update(item.existingModel.ID, item.modelUpdate)
-//
-// 			if item.err == nil {
-// 				So(err, ShouldBeNil)
-// 			} else {
-// 				So(err, ShouldResemble, item.err)
-// 			}
-// 		}
-// 	})
-// }
-//
-// //------------------------------------------------------------------------------
-//
-// func TestCloudAccountsDelete(t *testing.T) {
-// 	srv := newTestServer()
-// 	go srv.Start()
-// 	defer srv.Stop()
-//
-// 	Convey("CloudAccounts Delete works correctly", t, func() {
-//
-// 		table := []struct {
-// 			// Input
-// 			existingModel    *model.CloudAccount
-// 			hasExistingKubes []*model.Kube
-// 			// Expectations
-// 			err *model.Error
-// 		}{
-// 			// Successful example
-// 			{
-// 				existingModel: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				hasExistingKubes: nil,
-// 				err:              nil,
-// 			},
-//
-// 			// Can't delete if there's Kubes (cuz then we couldn't tear down)
-// 			{
-// 				existingModel: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				hasExistingKubes: []*model.Kube{
-// 					{
-// 						CloudAccountName: "test",
-// 						Name:             "testkube",
-// 						MasterNodeSize:   "t2.micro",
-// 						NodeSizes:        []string{"t2.micro"},
-// 						AWSConfig: &model.AWSKubeConfig{
-// 							Region:           "us-east-1",
-// 							AvailabilityZone: "us-east-1a",
-// 						},
-// 					},
-// 				},
-// 				err: &model.Error{Status: 422, Message: "Validation failed: Cannot delete CloudAccount that has active Kubes"},
-// 			},
-// 		}
-//
-// 		for _, item := range table {
-//
-// 			wipeAndInitialize(srv.Core)
-//
-// 			// For Create
-// 			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
-// 				return new(fake.Provider)
-// 			}
-//
-// 			requestor := createAdmin(srv.Core)
-// 			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
-//
-// 			srv.Core.CloudAccounts.Create(item.existingModel)
-//
-// 			for _, existingKube := range item.hasExistingKubes {
-// 				srv.Core.Kubes.Create(existingKube)
-// 			}
-//
-// 			err := sg.CloudAccounts.Delete(item.existingModel.ID, item.existingModel)
-//
-// 			if item.err == nil {
-// 				So(err, ShouldBeNil)
-// 			} else {
-// 				So(err, ShouldResemble, item.err)
-// 			}
-// 		}
-// 	})
-// }
+//------------------------------------------------------------------------------
+
+func TestEntrypointListenersGet(t *testing.T) {
+	srv := newTestServer()
+	go srv.Start()
+	defer srv.Stop()
+
+	Convey("EntrypointListeners Get works correctly", t, func() {
+
+		table := []struct {
+			// Input
+			parentCloudAccount *model.CloudAccount
+			parentKube         *model.Kube
+			parentEntrypoint   *model.Entrypoint
+			existingModel      *model.EntrypointListener
+			// Expectations
+			err *model.Error
+		}{
+			// A successful example
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				err: nil,
+			},
+		}
+
+		for _, item := range table {
+
+			wipeAndInitialize(srv.Core)
+
+			// For ValidateAccount on Create
+			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
+				return new(fake.Provider)
+			}
+
+			requestor := createAdmin(srv.Core)
+			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
+
+			if item.parentCloudAccount != nil {
+				srv.Core.CloudAccounts.Create(item.parentCloudAccount)
+			}
+			if item.parentKube != nil {
+				srv.Core.Kubes.Create(item.parentKube)
+			}
+			if item.parentEntrypoint != nil {
+				srv.Core.Entrypoints.Create(item.parentEntrypoint)
+			}
+
+			srv.Core.EntrypointListeners.Create(item.existingModel)
+
+			err := sg.EntrypointListeners.Get(item.existingModel.ID, item.existingModel)
+
+			if item.err == nil {
+				So(err, ShouldBeNil)
+			} else {
+				So(err, ShouldResemble, item.err)
+			}
+		}
+	})
+}
+
+//------------------------------------------------------------------------------
+
+func TestEntrypointListenersUpdate(t *testing.T) {
+	srv := newTestServer()
+	go srv.Start()
+	defer srv.Stop()
+
+	Convey("EntrypointListeners Update works correctly", t, func() {
+
+		table := []struct {
+			// Input
+			parentCloudAccount *model.CloudAccount
+			parentKube         *model.Kube
+			parentEntrypoint   *model.Entrypoint
+			existingModel      *model.EntrypointListener
+			modelUpdate        *model.EntrypointListener
+			// Expectations
+			err *model.Error
+		}{
+			// Can't update Name
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				modelUpdate: &model.EntrypointListener{
+					Name: "new-name",
+				},
+				err: &model.Error{Status: 422, Message: "Name cannot be changed"},
+			},
+
+			// Can't update EntrypointName
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				modelUpdate: &model.EntrypointListener{
+					EntrypointName: "new-name",
+				},
+				err: &model.Error{Status: 422, Message: "EntrypointName cannot be changed"},
+			},
+
+			// Can't update EntrypointPort
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				modelUpdate: &model.EntrypointListener{
+					EntrypointPort: 66,
+				},
+				err: &model.Error{Status: 422, Message: "EntrypointPort cannot be changed"},
+			},
+
+			// Can't update EntrypointProtocol
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				modelUpdate: &model.EntrypointListener{
+					EntrypointProtocol: "HTTPS",
+				},
+				err: &model.Error{Status: 422, Message: "EntrypointProtocol cannot be changed"},
+			},
+
+			// Can't update NodePort
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				modelUpdate: &model.EntrypointListener{
+					NodePort: 4444,
+				},
+				err: &model.Error{Status: 422, Message: "NodePort cannot be changed"},
+			},
+
+			// Can't update NodeProtocol
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				modelUpdate: &model.EntrypointListener{
+					NodeProtocol: "UDP",
+				},
+				err: &model.Error{Status: 422, Message: "NodeProtocol cannot be changed"},
+			},
+		}
+
+		for _, item := range table {
+
+			wipeAndInitialize(srv.Core)
+
+			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
+				return new(fake.Provider)
+			}
+
+			requestor := createAdmin(srv.Core)
+			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
+
+			if item.parentCloudAccount != nil {
+				srv.Core.CloudAccounts.Create(item.parentCloudAccount)
+			}
+			if item.parentKube != nil {
+				srv.Core.Kubes.Create(item.parentKube)
+			}
+			if item.parentEntrypoint != nil {
+				srv.Core.Entrypoints.Create(item.parentEntrypoint)
+			}
+
+			srv.Core.EntrypointListeners.Create(item.existingModel)
+
+			err := sg.EntrypointListeners.Update(item.existingModel.ID, item.modelUpdate)
+
+			if item.err == nil {
+				So(err, ShouldBeNil)
+			} else {
+				So(err, ShouldResemble, item.err)
+			}
+		}
+	})
+}
+
+//------------------------------------------------------------------------------
+
+func TestEntrypointListenersDelete(t *testing.T) {
+	srv := newTestServer()
+	go srv.Start()
+	defer srv.Stop()
+
+	Convey("EntrypointListeners Delete works correctly", t, func() {
+
+		table := []struct {
+			// Input
+			parentCloudAccount *model.CloudAccount
+			parentKube         *model.Kube
+			parentEntrypoint   *model.Entrypoint
+			existingModel      *model.EntrypointListener
+			// Mocks
+			mockDeleteEntrypointListenerError error
+			// Expectations
+			statusError string
+		}{
+			// Successful example
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				mockDeleteEntrypointListenerError: nil,
+				statusError:                       "",
+			},
+
+			// On Provider DeleteEntrypointListener error
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				existingModel: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				mockDeleteEntrypointListenerError: errors.New("error deleting EntrypointListener"),
+				statusError:                       "error deleting EntrypointListener",
+			},
+		}
+
+		for _, item := range table {
+
+			wipeAndInitialize(srv.Core)
+
+			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
+				return &fake.Provider{
+					DeleteEntrypointListenerFn: func(_ *model.EntrypointListener) error {
+						return item.mockDeleteEntrypointListenerError
+					},
+				}
+			}
+
+			requestor := createAdmin(srv.Core)
+			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
+
+			if item.parentCloudAccount != nil {
+				srv.Core.CloudAccounts.Create(item.parentCloudAccount)
+			}
+			if item.parentKube != nil {
+				srv.Core.Kubes.Create(item.parentKube)
+			}
+			if item.parentEntrypoint != nil {
+				srv.Core.Entrypoints.Create(item.parentEntrypoint)
+			}
+
+			srv.Core.EntrypointListeners.Create(item.existingModel)
+
+			sg.EntrypointListeners.Delete(item.existingModel.ID, item.existingModel)
+
+			// NOTE this is async error, so it is not the error returned from Delete.
+			// Should have an update by the time this Get completes
+			sg.EntrypointListeners.Get(item.existingModel.ID, item.existingModel)
+
+			So(item.existingModel.Status.Error, ShouldEqual, item.statusError)
+		}
+	})
+}
