@@ -1,9 +1,14 @@
-
-@import "bootstrap";
-@import "components";
+// Load variables first
 @import "mixins";
-@import "type";
 @import "variables";
+
+// Import Bootstrap
+@import "bootstrap";
+
+// Import everything else
+@import "components";
+@import "type";
+
 @import "views";
 
 

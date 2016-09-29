@@ -1,0 +1,37 @@
+@function sg-color($key: 'primary') {
+  @return map-get($sg-colors, $key);
+}
+
+$sg-colors: (
+  'primary': #485369,
+  'secondary': #9EB2BE,
+  'tertiary': #D7E4E9,
+  'foreground': #C9D7DE,
+  'background': #F7F8FA,
+  'success-primary': #7ED321,
+  'failure-primary': #D20000,
+  'failure-secondary': #ED9E9E,
+  'failure-tertiary': #F5E6E6,
+  'warning-primary': #FFC800,
+);
+
+$color-primary: sg-color('primary');
+$color-secondary: sg-color('secondary');
+$color-accent: sg-color('tertiary');
+$color-foreground: sg-color('foreground');
+$color-background: sg-color('background');
+
+$color-success-primary: sg-color('success-primary');
+$color-warning-primary: sg-color('warning-primary');
+$color-failure-primary: sg-color('failure-primary');
+$color-failure-secondary: sg-color('failure-secondary');
+$color-failure-tertiary: sg-color('failure-tertiary');
+
+$color-primary-tinted: mix(white, $color-primary, 10%);
+$color-primary-shaded: mix(black, $color-primary, 10%);
+
+$color-secondary-tinted: mix(white, $color-secondary, 10%);
+$color-secondary-shaded: mix(black, $color-secondary, 10%);
+
+$color-accent-tinted: mix(white, $color-accent, 10%);
+$color-accent-shaded: mix(black, $color-accent, 10%);
