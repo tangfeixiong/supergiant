@@ -92,103 +92,108 @@ func TestEntrypointListenersList(t *testing.T) {
 	})
 }
 
-// //------------------------------------------------------------------------------
-//
-// func TestCloudAccountsCreate(t *testing.T) {
-// 	srv := newTestServer()
-// 	go srv.Start()
-// 	defer srv.Stop()
-//
-// 	Convey("CloudAccounts Create works correctly", t, func() {
-//
-// 		table := []struct {
-// 			// Input
-// 			model *model.CloudAccount
-// 			// Mocks
-// 			mockValidateAccountError error
-// 			// Expectations
-// 			err *model.Error
-// 		}{
-// 			// A successful example
-// 			{
-// 				model: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				mockValidateAccountError: nil,
-// 				err: nil,
-// 			},
-//
-// 			// Invalid provider
-// 			{
-// 				model: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "nocloud",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				mockValidateAccountError: nil,
-// 				err: &model.Error{Status: 422, Message: "Validation failed: Provider: regular expression mismatch"},
-// 			},
-//
-// 			// No name
-// 			{
-// 				model: &model.CloudAccount{
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				mockValidateAccountError: nil,
-// 				err: &model.Error{Status: 422, Message: "Validation failed: Name: zero value"},
-// 			},
-//
-// 			// No credentials
-// 			{
-// 				model: &model.CloudAccount{
-// 					Name:     "test",
-// 					Provider: "aws",
-// 				},
-// 				mockValidateAccountError: nil,
-// 				err: &model.Error{Status: 422, Message: "Validation failed: Credentials: zero value"},
-// 			},
-//
-// 			// On Provider ValidateAccount error
-// 			{
-// 				model: &model.CloudAccount{
-// 					Name:        "test",
-// 					Provider:    "aws",
-// 					Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
-// 				},
-// 				mockValidateAccountError: errors.New("creds aren't working"),
-// 				err: &model.Error{Status: 422, Message: "Validation failed: creds aren't working"},
-// 			},
-// 		}
-//
-// 		for _, item := range table {
-//
-// 			wipeAndInitialize(srv.Core)
-//
-// 			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
-// 				return &fake.Provider{
-// 					ValidateAccountFn: func(m *model.CloudAccount) error {
-// 						return item.mockValidateAccountError
-// 					},
-// 				}
-// 			}
-//
-// 			requestor := createAdmin(srv.Core)
-// 			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
-//
-// 			err := sg.CloudAccounts.Create(item.model)
-//
-// 			if item.err == nil {
-// 				So(err, ShouldBeNil)
-// 			} else {
-// 				So(err, ShouldResemble, item.err)
-// 			}
-// 		}
-// 	})
-// }
-//
+//------------------------------------------------------------------------------
+
+func TestEntrypointListenersCreate(t *testing.T) {
+	srv := newTestServer()
+	go srv.Start()
+	defer srv.Stop()
+
+	Convey("EntrypointListeners Create works correctly", t, func() {
+
+		table := []struct {
+			// Input
+			parentCloudAccount *model.CloudAccount
+			parentKube         *model.Kube
+			parentEntrypoint   *model.Entrypoint
+			model              *model.EntrypointListener
+			// Mocks
+			mockCreateEntrypointListenerError error
+			// Expectations
+			err *model.Error
+		}{
+			// A successful example
+			{
+				parentCloudAccount: &model.CloudAccount{
+					Name:        "test",
+					Provider:    "aws",
+					Credentials: map[string]string{"test": "test"},
+				},
+				parentKube: &model.Kube{
+					CloudAccountName: "test",
+					Name:             "test",
+					MasterNodeSize:   "t2.micro",
+					NodeSizes:        []string{"t2.micro"},
+					AWSConfig: &model.AWSKubeConfig{
+						Region:           "us-east-1",
+						AvailabilityZone: "us-east-1a",
+					},
+				},
+				parentEntrypoint: &model.Entrypoint{
+					KubeName: "test",
+					Name:     "test",
+				},
+				model: &model.EntrypointListener{
+					EntrypointName: "test",
+					Name:           "port-test",
+					EntrypointPort: 80,
+					NodePort:       30303,
+				},
+				mockCreateEntrypointListenerError: nil,
+				err: nil,
+			},
+
+			// Correctly sets defaults
+
+			// No Entrypoint
+
+			// Invalid Entrypoint
+
+			// Invalid provider
+			// {
+			// 	model: &model.EntrypointListener{
+			// 		Name:        "test",
+			// 		Provider:    "nocloud",
+			// 		Credentials: map[string]string{"access_key": "blah", "secret_key": "bleh"},
+			// 	},
+			// 	mockCreateEntrypointListenerError: nil,
+			// 	err: &model.Error{Status: 422, Message: "Validation failed: Provider: regular expression mismatch"},
+			// },
+
+			// On Provider CreateEntrypointListener error
+
+		}
+
+		for _, item := range table {
+
+			wipeAndInitialize(srv.Core)
+
+			srv.Core.AWSProvider = func(_ map[string]string) core.Provider {
+				return &fake.Provider{
+					CreateEntrypointListenerFn: func(m *model.EntrypointListener) error {
+						return item.mockCreateEntrypointListenerError
+					},
+				}
+			}
+
+			requestor := createAdmin(srv.Core)
+			sg := srv.Core.NewAPIClient("token", requestor.APIToken)
+
+			srv.Core.CloudAccounts.Create(item.parentCloudAccount)
+			srv.Core.Kubes.Create(item.parentKube)
+			srv.Core.Entrypoints.Create(item.parentEntrypoint)
+
+			err := sg.EntrypointListeners.Create(item.model)
+
+			if item.err == nil {
+				So(err, ShouldBeNil)
+			} else {
+				So(err, ShouldResemble, item.err)
+			}
+		}
+	})
+}
+
 // //------------------------------------------------------------------------------
 //
 // func TestCloudAccountsGet(t *testing.T) {
