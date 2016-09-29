@@ -191,7 +191,7 @@ func validateFields(m model.Model) error {
 
 func marshalSerializedFields(m model.Model) {
 	for _, tf := range model.TaggedModelFieldsOf(m) {
-		if jsonField := tf.StoreAsJsonIn; jsonField != nil {
+		if jsonField := tf.StoreAsJSONIn; jsonField != nil {
 			objField := tf.Field
 
 			if objField.IsNil() || (reflect.Indirect(objField).Kind() == reflect.Slice && reflect.Indirect(objField).Len() == 0) {
@@ -210,7 +210,7 @@ func marshalSerializedFields(m model.Model) {
 
 func unmarshalSerializedFields(m model.Model) {
 	for _, tf := range model.TaggedModelFieldsOf(m) {
-		if jsonField := tf.StoreAsJsonIn; jsonField != nil {
+		if jsonField := tf.StoreAsJSONIn; jsonField != nil {
 			objField := tf.Field
 
 			if jsonField.Len() == 0 {

@@ -16,18 +16,24 @@ func newTestServer() *server.Server {
 	c.HTTPPort = "9999"
 	c.SQLiteFile = "../../../tmp/test.db"
 
-	// Wipe database
-	os.Remove(c.SQLiteFile)
-
-	if err := c.InitializeForeground(); err != nil {
-		panic(err)
-	}
+	wipeAndInitialize(c)
 
 	srv, err := server.New(c)
 	if err != nil {
 		panic(err)
 	}
 	return srv
+}
+
+func wipeDatabase(c *core.Core) {
+	os.Remove(c.SQLiteFile)
+}
+
+func wipeAndInitialize(c *core.Core) {
+	wipeDatabase(c)
+	if err := c.InitializeForeground(); err != nil {
+		panic(err)
+	}
 }
 
 func createUser(c *core.Core) *model.User {
