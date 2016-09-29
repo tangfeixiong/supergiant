@@ -11,14 +11,6 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
-// 1. test list no error
-//
-// 2. test get no error
-//
-// 3. test update no fields at all can be updated
-//
-// 4. test delete no error AND--- that can't delete if active kube
-
 func TestCloudAccountsList(t *testing.T) {
 	srv := newTestServer()
 	go srv.Start()
